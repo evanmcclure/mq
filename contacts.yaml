@@ -1,0 +1,8 @@
+# This is a comment
+name: Alice Smith
+age: 30
+occupation: Software Engineer
+skills:
+  - Python
+  - JavaScript
+  - YAML
