@@ -1,7 +1,8 @@
 mod cli;
 
+use serde_json::Value;
 use sqlparser::ast::{Select, TableFactor::Table};
-use std::{collections::{HashMap, HashSet}, error::Error, path::Path};
+use std::{collections::{HashMap, HashSet}, error::Error, fs::File, io::BufReader, path::Path};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = cli::parse()?;
@@ -23,12 +24,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // let serialized = serde_json::to_string_pretty(&query);
-    // let serialized = match serialized {
-    //     Ok(json) => json,
-    //     Err(e) => return Err(format!("Failed to serialize SQL statements: {}", e).into()),
-    // };
-    // println!("{}", serialized);
+    // Deserialize the JSON files into serde_json::Value and
+    // collect them into a Vector
+    let mut data: Vec<Value> = Vec::new();
+    for (_, path) in table_names_to_file_paths {
+        let file =  File::open(path)?;
+        let reader = BufReader::new(file);
+        let value: Value = serde_json::from_reader(reader)?;
+        data.push(value);
+    }
+
+    // Merge the JSON data into a single JSON object
+    let mut merged_data = serde_merge::Map::new();
+    for value in &data {
+        let m = serde_merge::omerge(&mut merged_data, value)?;
+        merged_data = m;
+    }
+
+    println!("Merged JSON data: {:?}", merged_data);
 
     Ok(())
 }
