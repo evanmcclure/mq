@@ -13,6 +13,9 @@ pub struct Cli {
     #[arg(value_name = "SQL", required = true)]
     /// Optional SQL query to execute
     sql: Option<String>,
+
+    #[arg(short, long, default_value = "false")]
+    pretty: bool
 }
 
 pub fn parse() -> Result<Cli, Box<dyn Error>> {
@@ -109,4 +112,8 @@ pub fn parse_file_args(args: &Cli) -> Result<Vec<String>, Box<dyn Error>> {
     let files = files.clone();
 
     Ok(files)
+}
+
+pub fn pretty(args: &Cli) -> bool {
+    args.pretty
 }

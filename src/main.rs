@@ -1,8 +1,9 @@
 mod cli;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlparser::ast::{Select, TableFactor::Table};
 use std::{collections::{HashMap, HashSet}, error::Error, fs::File, io::BufReader, path::Path};
+use json_value_merge::Merge;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = cli::parse()?;
@@ -12,12 +13,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let files = cli::parse_file_args(&args)?;
 
     let table_names_to_file_paths = get_table_names_from_file_paths(&files)?;
-    println!("Files to process: {:?}", table_names_to_file_paths);
 
     let table_names = get_table_names_from_select(&select_statement)?;
-    println!("Table names found in the query: {:?}", table_names);
 
-    // Validate that the table names in the SQL query exist in the provided files
+    // Verify that the table names in the SQL query exist in the provided files
     for table_name in &table_names {
         if !table_names_to_file_paths.contains_key(table_name) {
             return Err(format!("Table '{}' not found in the provided files.", table_name).into());
@@ -25,23 +24,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Deserialize the JSON files into serde_json::Value and
-    // collect them into a Vector
-    let mut data: Vec<Value> = Vec::new();
-    for (_, path) in table_names_to_file_paths {
+    // collect them into a map where the keys are the table names
+    // and the values are the JSON data.
+    let mut data: HashMap<String, Value> = HashMap::new();
+    for (table_name, path) in table_names_to_file_paths {
         let file =  File::open(path)?;
         let reader = BufReader::new(file);
         let value: Value = serde_json::from_reader(reader)?;
-        data.push(value);
+        data.insert(table_name, value);
     }
 
-    // Merge the JSON data into a single JSON object
-    let mut merged_data = serde_merge::Map::new();
-    for value in &data {
-        let m = serde_merge::omerge(&mut merged_data, value)?;
-        merged_data = m;
-    }
+    // If no table names were specified in the SQL query, we will merge all JSON data
+    // from the provided files and print it to stdout.
+    // If table names were specified, we will only print the JSON data for those tables.
+    if table_names.is_empty() {
+        let mut merged_data = json!("{}");
+        for value in data.values() {
+            merged_data.merge(value);
+        }
 
-    println!("Merged JSON data: {:?}", merged_data);
+        if cli::pretty(&args) {
+            serde_json::to_writer_pretty(std::io::stdout(), &merged_data)?;
+        } else {
+            serde_json::to_writer(std::io::stdout(), &merged_data)?;
+        }
+    } else {
+    }
 
     Ok(())
 }
@@ -60,14 +68,15 @@ fn get_table_names_from_file_paths(files: &Vec<String>) -> Result<HashMap<std::s
 
     for file in files {
         let path = Path::new(file);
-                let table_name = match path.file_stem() {
-            Some(name) => name.to_string_lossy().to_string(),
+
+        let file_name = match path.file_stem() {
+            Some(file_name) => file_name.to_string_lossy().to_string(),
             None => {
                 return Err(format!("Could not extract a valid table name from '{}'.", file).into());
-            }   
+            }
         };
 
-        let table_name = table_name.to_uppercase();
+        let table_name = sql_table_name(&file_name);
 
         table_names_to_file_paths.insert(table_name, path);
     }
@@ -94,11 +103,17 @@ fn get_table_names_from_select(select: &Select) -> Result<HashSet<String>, Box<d
                 },
             };
 
-            let table_name = table_name.to_uppercase();
+            let table_name = sql_table_name(&table_name);
 
             table_names.insert(table_name);
         }
     }
 
     Ok(table_names)
+}
+
+fn sql_table_name(file_name: &str) -> String {
+    let table_name = file_name.to_uppercase();
+     // Replace hyphens with underscores for to make it a valid SQL table name
+    table_name.replace("-","_")
 }
