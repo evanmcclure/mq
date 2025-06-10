@@ -33,7 +33,7 @@ pub fn parse() -> Result<Cli, Box<dyn Error>> {
 /// If the SQL query is empty, it returns an error.
 /// 
 /// If the SQL query is not a valid SELECT statement, it returns an error.
-pub fn parse_sql_arg(args: &Cli) -> Result<Select, Box<dyn Error + 'static>> {
+pub fn select_statement_from(args: &Cli) -> Result<Select, Box<dyn Error + 'static>> {
     let sql = match &args.sql {
         Some(sql) => sql,
         None => {
@@ -84,7 +84,7 @@ pub fn parse_sql_arg(args: &Cli) -> Result<Select, Box<dyn Error + 'static>> {
 /// If no files are provided, it returns an error.
 /// 
 /// If any file does not exist or is not readable, it returns an error.
-pub fn parse_file_args(args: &Cli) -> Result<Vec<String>, Box<dyn Error>> {
+pub fn files_from(args: &Cli) -> Result<Vec<String>, Box<dyn Error>> {
     // Gather the file paths from the command line arguments
     let files = match &args.file {
         Some(files) => files,
